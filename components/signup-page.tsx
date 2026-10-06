@@ -26,6 +26,7 @@ const storeCategories = [
   { value: "food", label: "Food" },
   { value: "clothes", label: "Clothes" },
   { value: "hardware", label: "Hardware" },
+  { value: "market", label: "Shop & Market" },
 ]
 
 export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {

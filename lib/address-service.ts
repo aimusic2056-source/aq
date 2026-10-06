@@ -15,6 +15,17 @@ export interface AddressSuggestion {
 const GEOAPIFY_BASE_URL = "https://api.geoapify.com/v1/geocode/autocomplete"
 const GEOAPIFY_API_KEY = process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY
 
+export async function reverseGeocode(lat: number, lng: number): Promise<AddressSuggestion | null> {
+  if (!GEOAPIFY_API_KEY) return null
+  try {
+    const response = await fetch(`${GEOAPIFY_BASE_URL.replace("autocomplete", "reverse")}?lat=${lat}&lon=${lng}&format=json&apiKey=${GEOAPIFY_API_KEY}`)
+    if (!response.ok) return null
+    const result = (await response.json()).results?.[0]
+    if (!result) return null
+    return { id: result.place_id || `${lat},${lng}`, name: result.address_line1 || result.formatted || "", fullAddress: result.formatted || "", coordinates: { lat, lng } }
+  } catch { return null }
+}
+
 // ============================================
 // EXPORTED FUNCTION - UI CALLS THIS
 // ============================================

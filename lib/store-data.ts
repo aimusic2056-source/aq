@@ -28,6 +28,8 @@ export interface Product {
   unit: string
   description: string
   image: string
+  imageUrls?: string[]
+  foodCategory?: string
   available: boolean
 }
 
@@ -48,6 +50,7 @@ export interface StoreInfo {
 
 export interface StoreData {
   storeName: string
+  storeCategory: string
   storeStatus: boolean
   storeStatusManualOverride: boolean
   revenueToday: number
@@ -67,6 +70,7 @@ export interface StoreData {
 // Placeholder data - will be replaced by Firebase/Firestore bindings
 export const placeholderStoreData: StoreData = {
   storeName: "",
+  storeCategory: "food",
   storeStatus: true, // {storeStatus}
   storeStatusManualOverride: false, // {storeStatusManualOverride}
   revenueToday: 0, // {revenueToday} - calculated from Firestore orders
