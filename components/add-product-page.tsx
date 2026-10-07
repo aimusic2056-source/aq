@@ -25,6 +25,7 @@ const categoryOptions: Record<string, { label: string; key?: string }[]> = {
 }
 
 const units = ["item", "bag", "g", "kg", "ml", "L", "pack"]
+const clothingImageSlots = [0, 1, 2] as const
 
 function parseUnit(unit?: string | null): { amount: string; type: string } {
   const raw = (unit ?? "").trim()
@@ -228,7 +229,9 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
             <div className="flex flex-col gap-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product Photos</p>
               <div className="grid grid-cols-3 gap-2">
-                {images.map((slotImage, index) => (
+                {clothingImageSlots.map((index) => {
+                  const slotImage = images[index] || ""
+                  return (
                   <div key={index} className="relative">
                     <button
                       type="button"
@@ -262,7 +265,8 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
                     )}
                     {slotImage && <p className="mt-1 text-center text-[10px] text-muted-foreground">{index === 0 ? "Main photo (required)" : "Optional"}</p>}
                   </div>
-                ))}
+                  )
+                })}
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
             </div>
