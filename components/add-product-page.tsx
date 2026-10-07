@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useMemo } from "react"
-import { ChevronLeft, Camera, Plus, Loader2 } from "lucide-react"
+import { ChevronLeft, Camera, Plus, Loader2, X } from "lucide-react"
 import { doc, collection, setDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { uploadProductImage } from "@/lib/cloudinary"
@@ -51,7 +51,10 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
   const [description, setDescription] = useState(product?.description || "")
   const [available, setAvailable] = useState(product?.available ?? true)
   const [image, setImage] = useState(product?.image || "")
-  const [images, setImages] = useState<string[]>(product?.imageUrls?.length ? product.imageUrls : product?.image ? [product.image] : [])
+  const [images, setImages] = useState<string[]>(() => {
+    const existingImages = product?.imageUrls?.length ? product.imageUrls : product?.images?.length ? product.images : product?.image ? [product.image] : []
+    return [...existingImages.slice(0, 3), "", ""].slice(0, 3)
+  })
   const [imageFiles, setImageFiles] = useState<(File | null)[]>([null, null, null])
   const [stock, setStock] = useState(product?.stock?.toString() || "0")
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -65,18 +68,30 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      if (storeCategory === "clothes") {
-        setImageFiles((current) => current.map((item, index) => index === activeSlot ? file : item))
-      } else setImageFile(file)
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const preview = event.target?.result as string
-        if (storeCategory === "clothes") setImages((current) => current.map((item, index) => index === activeSlot ? preview : item))
-        else setImage(preview)
-      }
-      reader.readAsDataURL(file)
+    e.target.value = ""
+    if (!file) return
+
+    if (storeCategory === "clothes") {
+      setImageFiles((current) => current.map((item, index) => index === activeSlot ? file : item))
+    } else {
+      setImageFile(file)
     }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const preview = event.target?.result as string
+      if (storeCategory === "clothes") {
+        setImages((current) => current.map((item, index) => index === activeSlot ? preview : item))
+      } else {
+        setImage(preview)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const removeClothingImage = (slot: number) => {
+    setImages((current) => current.map((item, index) => index === slot ? "" : item))
+    setImageFiles((current) => current.map((item, index) => index === slot ? null : item))
   }
 
   const handleSave = async () => {
@@ -90,11 +105,27 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
       const productId = product?.id || doc(collection(db, "stores", storeId, "products")).id
       
       let imageUrl = image
-      let imageUrls = images
+      let imageUrls = images.filter(Boolean)
       if (storeCategory === "clothes") {
-        imageUrls = await Promise.all(images.slice(0, 3).map(async (current, index) => imageFiles[index] ? uploadProductImage(imageFiles[index] as File, storeId, productId) : current))
-        imageUrls = imageUrls.filter(Boolean)
-        if (!imageUrls.length) { setError("Add at least one photo"); setIsSaving(false); return }
+        if (!imageUrls.length && !imageFiles.some(Boolean)) {
+          setError("Add at least one photo")
+          setIsSaving(false)
+          return
+        }
+
+        setIsUploading(true)
+        try {
+          imageUrls = (await Promise.all(images.map((current, index) => imageFiles[index]
+            ? uploadProductImage(imageFiles[index] as File, storeId, productId)
+            : current
+          ))).filter(Boolean)
+        } catch (uploadError) {
+          setError("Failed to upload image. Please try again.")
+          setIsSaving(false)
+          setIsUploading(false)
+          return
+        }
+        setIsUploading(false)
         imageUrl = imageUrls[0]
       }
 
@@ -144,6 +175,7 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
         available,
         image: imageUrl || "/images/placeholder.jpg",
         imageUrls: storeCategory === "clothes" ? imageUrls : undefined,
+        images: storeCategory === "clothes" ? imageUrls : undefined,
         foodCategory: storeCategory === "food" || storeCategory === "market" ? options.find((option) => option.label === category)?.key : undefined,
         stock: parseInt(stock) || 0,
       })
@@ -192,44 +224,62 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
           )}
 
           {/* Image Upload */}
-          <div className="flex justify-center">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading || isSaving}
-              className="w-full max-w-xs h-36 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 bg-card hover:bg-accent/50 transition-colors relative overflow-hidden disabled:cursor-not-allowed"
-            >
-              {isUploading && (
-                <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-6 h-6 text-primary animate-spin" />
-                    <span className="text-xs text-muted-foreground">Uploading...</span>
+          {storeCategory === "clothes" ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product Photos</p>
+              <div className="grid grid-cols-3 gap-2">
+                {images.map((slotImage, index) => (
+                  <div key={index} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => { setActiveSlot(index); fileInputRef.current?.click() }}
+                      disabled={isUploading || isSaving}
+                      className="w-full aspect-square border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-1 bg-card hover:bg-accent/50 transition-colors relative overflow-hidden disabled:cursor-not-allowed"
+                      aria-label={`Choose ${index === 0 ? "main photo" : `optional photo ${index + 1}`}`}
+                    >
+                      {slotImage ? (
+                        <img src={slotImage} alt={`${name || "Product"} photo ${index + 1}`} className="w-full h-full object-cover" />
+                      ) : (
+                        <>
+                          <Camera className="w-6 h-6 text-primary" />
+                          <Plus className="w-3 h-3 text-primary absolute translate-x-3 -translate-y-3" />
+                          <span className="px-1 text-center text-[10px] leading-tight text-muted-foreground">
+                            {index === 0 ? "Main photo (required)" : "Optional"}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                    {slotImage && (
+                      <button
+                        type="button"
+                        onClick={() => removeClothingImage(index)}
+                        disabled={isUploading || isSaving}
+                        className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm"
+                        aria-label={`Remove photo ${index + 1}`}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                    {slotImage && <p className="mt-1 text-center text-[10px] text-muted-foreground">{index === 0 ? "Main photo (required)" : "Optional"}</p>}
                   </div>
-                </div>
-              )}
-              {image ? (
-                <img
-                  src={image}
-                  alt="Product preview"
-                  className="w-full h-full object-cover rounded-xl"
-                />
-              ) : (
-                <>
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Camera className="w-6 h-6 text-primary" />
-                    <Plus className="w-3 h-3 text-primary absolute translate-x-3 -translate-y-3" />
-                  </div>
-                  <span className="text-sm text-muted-foreground">Tap to Upload Image</span>
-                </>
-              )}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-          </div>
+                ))}
+              </div>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading || isSaving}
+                className="relative flex h-36 w-full max-w-xs flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed border-border bg-card transition-colors hover:bg-accent/50 disabled:cursor-not-allowed"
+              >
+                {isUploading && <Loader2 className="size-6 animate-spin text-primary" />}
+                {image ? <img src={image} alt="Product preview" className="h-full w-full rounded-xl object-cover" /> : <><Camera className="size-6 text-primary" /><span className="text-sm text-muted-foreground">Tap to Upload Image</span></>}
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            </div>
+          )}
 
           {/* Product Name */}
           <div className="flex flex-col gap-1.5">

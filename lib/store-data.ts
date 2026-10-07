@@ -29,6 +29,7 @@ export interface Product {
   description: string
   image: string
   imageUrls?: string[]
+  images?: string[]
   foodCategory?: string
   available: boolean
 }
