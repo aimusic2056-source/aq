@@ -84,6 +84,7 @@ export default function MerchantApp() {
   imageUrls: Array.isArray(productData.imageUrls) ? productData.imageUrls : Array.isArray(productData.images) ? productData.images : undefined,
   images: Array.isArray(productData.images) ? productData.images : Array.isArray(productData.imageUrls) ? productData.imageUrls : undefined,
   foodCategory: productData.foodCategory || undefined,
+  categoryKey: productData.categoryKey || undefined,
             unit: productData.unit || "item",
             description: productData.description || "",
             image: productData.imageUrl || "/images/placeholder.jpg",

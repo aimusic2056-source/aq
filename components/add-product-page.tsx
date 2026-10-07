@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useMemo } from "react"
+import { useState, useRef, useMemo, useEffect } from "react"
 import { ChevronLeft, Camera, Plus, Loader2, X } from "lucide-react"
 import { doc, collection, setDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase"
@@ -17,11 +17,15 @@ interface AddProductPageProps {
   onSave: (product: Omit<Product, "id"> & { id?: string }) => void
 }
 
+export function slugifyCategory(label: string): string {
+  return label.toLowerCase().trim().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "").replace(/^_+|_+$/g, "")
+}
+
 const categoryOptions: Record<string, { label: string; key?: string }[]> = {
-  food: [{ label: "Fast Food", key: "food" }, { label: "Healthy", key: "food" }, { label: "Snacks", key: "food" }, { label: "Fresh Produce", key: "food" }, { label: "Japanese", key: "food" }, { label: "Desserts", key: "dessert" }, { label: "Beverages", key: "drinks" }, { label: "Other", key: "food" }],
+  food: [{ label: "Fast Food", key: "food" }, { label: "Healthy", key: "food" }, { label: "Snacks", key: "food" }, { label: "Fresh Produce", key: "food" }, { label: "Japanese", key: "food" }, { label: "Desserts", key: "dessert" }, { label: "Drinks", key: "drinks" }, { label: "Other", key: "food" }],
   clothes: ["Men", "Women", "Kids", "Shoes", "Bags & Accessories", "Chitenge & Traditional Wear", "Sportswear", "Underwear & Socks", "Other"].map((label) => ({ label })),
   hardware: ["Building Materials", "Roofing", "Plumbing", "Electrical", "Paint & Finishes", "Tools & Equipment", "Doors Windows & Locks", "Nails Screws & Fasteners", "Garden & Outdoor", "Safety Gear", "Other"].map((label) => ({ label })),
-  market: [{ label: "Vegetables", key: "vegetables" }, { label: "Fruits", key: "fruits" }, { label: "Dry Food (beans, groundnuts, kapenta, rice)", key: "dry_food" }, { label: "Utensils", key: "utensils" }, { label: "Baskets & Buckets", key: "baskets_buckets" }, { label: "Shoes", key: "shoes" }, { label: "Garden Items", key: "garden" }, { label: "Household Items", key: "household" }, { label: "Other", key: "other" }],
+  market: [{ label: "Vegetables", key: "vegetables" }, { label: "Fruits", key: "fruits" }, { label: "Dry Food (beans, groundnuts, kapenta, rice)", key: "dry_food" }, { label: "Utensils", key: "utensils" }, { label: "Baskets & Buckets", key: "baskets_buckets" }, { label: "Shoes", key: "shoes" }, { label: "Garden Items", key: "garden" }, { label: "Household Items", key: "household" }, { label: "Drinks", key: "drinks" }, { label: "Other", key: "other" }],
 }
 
 const units = ["item", "bag", "g", "kg", "ml", "L", "pack"]
@@ -41,10 +45,10 @@ function parseUnit(unit?: string | null): { amount: string; type: string } {
 export function AddProductPage({ product, storeId, storeName, storeAddress, storeCategory, onBack, onSave }: AddProductPageProps) {
   const options = useMemo(() => {
     const list = categoryOptions[storeCategory] || categoryOptions.food
-    return product?.category && !list.some((option) => option.label === product.category) ? [...list, { label: product.category }] : list
+    return product?.category && !list.some((option) => option.label === (product.category === "Beverages" ? "Drinks" : product.category)) ? [...list, { label: product.category === "Beverages" ? "Drinks" : product.category }] : list
   }, [storeCategory, product?.category])
   const [name, setName] = useState(product?.name || "")
-  const [category, setCategory] = useState(product?.category || options[0].label)
+  const [category, setCategory] = useState(product?.category === "Beverages" ? "Drinks" : product?.category || options[0].label)
   const [price, setPrice] = useState(product?.price?.toString() || "")
   const parsedUnit = parseUnit(product?.unit)
   const [unitAmount, setUnitAmount] = useState(parsedUnit.amount)
@@ -63,35 +67,45 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [activeSlot, setActiveSlot] = useState(0)
+  const imagesRef = useRef(images)
+  imagesRef.current = images
 
-  const isEditing = !!product
+  useEffect(() => {
+    return () => {
+      imagesRef.current.forEach((preview) => {
+        if (preview.startsWith("blob:")) URL.revokeObjectURL(preview)
+      })
+    }
+  }, [])
+
+  const handlePhotoChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    setImages((current) => {
+      const previous = current[index]
+      if (previous?.startsWith("blob:")) URL.revokeObjectURL(previous)
+      return current.map((item, itemIndex) => itemIndex === index ? URL.createObjectURL(file) : item)
+    })
+    setImageFiles((current) => current.map((item, itemIndex) => itemIndex === index ? file : item))
+  }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ""
     if (!file) return
-
-    if (storeCategory === "clothes") {
-      setImageFiles((current) => current.map((item, index) => index === activeSlot ? file : item))
-    } else {
-      setImageFile(file)
-    }
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const preview = event.target?.result as string
-      if (storeCategory === "clothes") {
-        setImages((current) => current.map((item, index) => index === activeSlot ? preview : item))
-      } else {
-        setImage(preview)
-      }
-    }
-    reader.readAsDataURL(file)
+    setImageFile(file)
+    setImage(URL.createObjectURL(file))
   }
 
+  const isEditing = !!product
+
   const removeClothingImage = (slot: number) => {
-    setImages((current) => current.map((item, index) => index === slot ? "" : item))
+    setImages((current) => {
+      const previous = current[slot]
+      if (previous?.startsWith("blob:")) URL.revokeObjectURL(previous)
+      return current.map((item, index) => index === slot ? "" : item)
+    })
     setImageFiles((current) => current.map((item, index) => index === slot ? null : item))
   }
 
@@ -151,8 +165,9 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
         imageUrl: imageUrl === "/images/placeholder.jpg" ? "" : imageUrl || "",
         ...(storeCategory === "clothes" ? { imageUrls } : {}),
         ...(storeCategory === "food" || storeCategory === "market" ? { foodCategory: options.find((option) => option.label === category)?.key } : {}),
-        description: description.trim(),
         category,
+        categoryKey: slugifyCategory(category),
+        description: description.trim(),
         unit: `${unitAmount}${unitType}`,
         stockQuantity: parseInt(stock) || 0,
         availability: available,
@@ -177,6 +192,7 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
         image: imageUrl || "/images/placeholder.jpg",
         imageUrls: storeCategory === "clothes" ? imageUrls : undefined,
         images: storeCategory === "clothes" ? imageUrls : undefined,
+        categoryKey: slugifyCategory(category),
         foodCategory: storeCategory === "food" || storeCategory === "market" ? options.find((option) => option.label === category)?.key : undefined,
         stock: parseInt(stock) || 0,
       })
@@ -232,39 +248,17 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
                 {clothingImageSlots.map((index) => {
                   const slotImage = images[index] || ""
                   return (
-                  <div key={index} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => { setActiveSlot(index); fileInputRef.current?.click() }}
-                      disabled={isUploading || isSaving}
-                      className="w-full aspect-square border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-1 bg-card hover:bg-accent/50 transition-colors relative overflow-hidden disabled:cursor-not-allowed"
-                      aria-label={`Choose ${index === 0 ? "main photo" : `optional photo ${index + 1}`}`}
-                    >
-                      {slotImage ? (
-                        <img src={slotImage} alt={`${name || "Product"} photo ${index + 1}`} className="w-full h-full object-cover" />
-                      ) : (
-                        <>
-                          <Camera className="w-6 h-6 text-primary" />
-                          <Plus className="w-3 h-3 text-primary absolute translate-x-3 -translate-y-3" />
-                          <span className="px-1 text-center text-[10px] leading-tight text-muted-foreground">
-                            {index === 0 ? "Main photo (required)" : "Optional"}
-                          </span>
-                        </>
-                      )}
-                    </button>
-                    {slotImage && (
-                      <button
-                        type="button"
-                        onClick={() => removeClothingImage(index)}
-                        disabled={isUploading || isSaving}
-                        className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm"
-                        aria-label={`Remove photo ${index + 1}`}
+                    <div key={index} className="relative">
+                      <input id={`product-photo-${index}`} type="file" accept="image/*" className="sr-only" onChange={(e) => handlePhotoChange(index, e)} disabled={isUploading || isSaving} />
+                      <label
+                        htmlFor={`product-photo-${index}`}
+                        className="relative flex aspect-square w-full cursor-pointer flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-2 border-dashed border-border bg-card transition-colors hover:bg-accent/50"
                       >
-                        <X className="size-3" />
-                      </button>
-                    )}
-                    {slotImage && <p className="mt-1 text-center text-[10px] text-muted-foreground">{index === 0 ? "Main photo (required)" : "Optional"}</p>}
-                  </div>
+                        {slotImage ? <img src={slotImage} alt={`${name || "Product"} photo ${index + 1}`} className="h-full w-full object-cover" /> : <><Camera className="size-6 text-primary" /><Plus className="absolute size-3 translate-x-3 -translate-y-3 text-primary" /></>}
+                      </label>
+                      {slotImage && <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); removeClothingImage(index) }} disabled={isUploading || isSaving} className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm" aria-label={`Remove photo ${index + 1}`}><X className="size-3" /></button>}
+                      <p className="mt-1 text-center text-[10px] text-muted-foreground">{index === 0 ? "Main photo (required)" : "Optional"}</p>
+                    </div>
                   )
                 })}
               </div>

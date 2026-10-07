@@ -1,6 +1,10 @@
 // Placeholder data bindings for Firebase/Firestore connection
 // All values here are placeholders that will be replaced with live data
 
+export function slugifyCategory(label: string): string {
+  return label.toLowerCase().trim().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "").replace(/^_+|_+$/g, "")
+}
+
 export interface Order {
   id: string
   customerName: string
@@ -30,6 +34,7 @@ export interface Product {
   image: string
   imageUrls?: string[]
   images?: string[]
+  categoryKey?: string
   foodCategory?: string
   available: boolean
 }
