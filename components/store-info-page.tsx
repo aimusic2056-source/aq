@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { ChevronLeft, Upload, MapPin, Phone, Loader2 } from "lucide-react"
-import { searchAddress, type AddressSuggestion } from "@/lib/address-service"
+import { isAddressSearchConfigured, reverseGeocode, searchAddress, type AddressSuggestion } from "@/lib/address-service"
 import { doc, setDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { uploadStoreLogo } from "@/lib/cloudinary"
@@ -22,6 +22,9 @@ export function StoreInfoPage({ storeInfo, storeId, onBack, onSave }: StoreInfoP
   const [addressCoords, setAddressCoords] = useState(storeInfo.storeLocation || null)
   const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([])
   const [showAddressSuggestions, setShowAddressSuggestions] = useState(false)
+  const [isAddressFocused, setIsAddressFocused] = useState(false)
+  const [isSearchingAddress, setIsSearchingAddress] = useState(false)
+  const [addressMessage, setAddressMessage] = useState<string | null>(null)
   const [phone, setPhone] = useState(storeInfo.phone || "")
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
@@ -29,17 +32,46 @@ export function StoreInfoPage({ storeInfo, storeId, onBack, onSave }: StoreInfoP
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleAddressSearch = async (value: string) => {
-    setAddress(value)
-    setAddressCoords(null)
-    if (value.trim().length > 2) {
-      const results = await searchAddress(value)
-      setAddressSuggestions(results)
-      setShowAddressSuggestions(true)
-    } else {
+  useEffect(() => {
+    if (!isAddressFocused || address.trim().length <= 2) {
       setAddressSuggestions([])
       setShowAddressSuggestions(false)
+      setAddressMessage(null)
+      return
     }
+    if (!isAddressSearchConfigured) {
+      setAddressMessage("Address suggestions are unavailable; enter the address manually.")
+      return
+    }
+    setIsSearchingAddress(true)
+    setAddressMessage(null)
+    const timer = window.setTimeout(async () => {
+      const results = await searchAddress(address)
+      setAddressSuggestions(results)
+      setShowAddressSuggestions(results.length > 0)
+      if (results.length === 0) setAddressMessage("No matching addresses found. You can enter it manually.")
+      setIsSearchingAddress(false)
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [address, isAddressFocused])
+
+  const handleAddressSearch = (value: string) => {
+    setAddress(value)
+    setAddressCoords(null)
+  }
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) return setAddressMessage("Location is not available in this browser.")
+    setIsSearchingAddress(true)
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      const result = await reverseGeocode(coords.latitude, coords.longitude)
+      setAddress(result?.fullAddress ?? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}`)
+      setAddressCoords({ lat: coords.latitude, lng: coords.longitude })
+      setIsSearchingAddress(false)
+    }, () => {
+      setIsSearchingAddress(false)
+      setAddressMessage("We could not access your location. Enter the address manually.")
+    })
   }
 
   const handleSelectAddress = (suggestion: AddressSuggestion) => {
@@ -196,11 +228,12 @@ export function StoreInfoPage({ storeInfo, storeId, onBack, onSave }: StoreInfoP
                 placeholder="Enter store address"
                 value={address}
                 onChange={(e) => handleAddressSearch(e.target.value)}
-                onFocus={() => address.length > 2 && setShowAddressSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowAddressSuggestions(false), 200)}
+  onFocus={() => setIsAddressFocused(true)}
+  onBlur={() => setTimeout(() => setIsAddressFocused(false), 200)}
                 className="w-full pl-11 pr-4 py-3 bg-card border border-border rounded-xl text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-              />
-              {showAddressSuggestions && addressSuggestions.length > 0 && (
+  />
+  {(isSearchingAddress || addressMessage) && <p className="mt-1 text-xs text-muted-foreground">{isSearchingAddress ? "Searching addresses…" : addressMessage}</p>}
+  {showAddressSuggestions && addressSuggestions.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-20 max-h-48 overflow-y-auto bg-card border border-border shadow-lg">
                   {addressSuggestions.map((suggestion) => (
                     <button

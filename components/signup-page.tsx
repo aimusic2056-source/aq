@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Mail, Lock, Phone, Search, ChevronLeft, User, Store, MapPin } from "lucide-react"
 import { createUserWithEmailAndPassword } from "firebase/auth"
 import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase"
-import { searchAddress, type AddressSuggestion } from "@/lib/address-service"
+import { isAddressSearchConfigured, reverseGeocode, searchAddress, type AddressSuggestion } from "@/lib/address-service"
 import { WaterDroplets } from "@/components/water-droplets"
 
 interface SignupPageProps {
@@ -20,6 +20,10 @@ interface SignupPageProps {
     category: string
   }) => void
   onSignIn: () => void
+}
+
+function capitalizeWords(value: string): string {
+  return value.split(" ").map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(" ")
 }
 
 const storeCategories = [
@@ -49,6 +53,9 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
   const [addressCoords, setAddressCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([])
   const [showAddressSuggestions, setShowAddressSuggestions] = useState(false)
+  const [isAddressFocused, setIsAddressFocused] = useState(false)
+  const [isSearchingAddress, setIsSearchingAddress] = useState(false)
+  const [addressSearchMessage, setAddressSearchMessage] = useState<string | null>(null)
 
   // Validation functions
   const validatePhone = useCallback((value: string) => {
@@ -125,16 +132,46 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
     setStep(1)
   }, [])
 
-  const handleAddressSearch = useCallback(async (query: string) => {
-    setAddress(query)
-    if (query.length > 2) {
-      const results = await searchAddress(query)
-      setAddressSuggestions(results)
-      setShowAddressSuggestions(true)
-    } else {
+  useEffect(() => {
+    if (!isAddressFocused || address.trim().length <= 2) {
       setAddressSuggestions([])
       setShowAddressSuggestions(false)
+      setAddressSearchMessage(null)
+      return
     }
+    if (!isAddressSearchConfigured) {
+      setAddressSearchMessage("Address suggestions are unavailable; enter your address manually.")
+      return
+    }
+    setIsSearchingAddress(true)
+    setAddressSearchMessage(null)
+    const timer = window.setTimeout(async () => {
+      const results = await searchAddress(address)
+      setAddressSuggestions(results)
+      setShowAddressSuggestions(results.length > 0)
+      if (results.length === 0) setAddressSearchMessage("No matching addresses found. You can enter it manually.")
+      setIsSearchingAddress(false)
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [address, isAddressFocused])
+
+  const handleAddressSearch = useCallback((query: string) => {
+    setAddress(query)
+    setAddressCoords(null)
+  }, [])
+
+  const handleUseCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) return setAddressSearchMessage("Location is not available in this browser.")
+    setIsSearchingAddress(true)
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      const result = await reverseGeocode(coords.latitude, coords.longitude)
+      setAddress(result?.fullAddress ?? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}`)
+      setAddressCoords({ lat: coords.latitude, lng: coords.longitude })
+      setIsSearchingAddress(false)
+    }, () => {
+      setIsSearchingAddress(false)
+      setAddressSearchMessage("We could not access your location. Enter your address manually.")
+    })
   }, [])
 
   const handleSelectAddress = useCallback((suggestion: AddressSuggestion) => {
@@ -149,6 +186,10 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
 
     setIsLoading(true)
 
+    const savedFirstName = capitalizeWords(firstName)
+    const savedSurname = capitalizeWords(surname)
+    const savedStoreName = capitalizeWords(storeName)
+
     try {
       // Create Firebase Auth account
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
@@ -156,9 +197,9 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
 
       // Create Firestore document
       await setDoc(doc(db, "stores", uid), {
-        firstName,
-        surname,
-        storeName,
+        firstName: savedFirstName,
+        surname: savedSurname,
+        storeName: savedStoreName,
         category,
         phone: `+26${phone}`,
         email,
@@ -189,9 +230,9 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
       // Success - pass user data to parent
       onSignupSuccess({
         uid,
-        firstName,
-        surname,
-        storeName,
+        firstName: savedFirstName,
+        surname: savedSurname,
+        storeName: savedStoreName,
         phone: `+26${phone}`,
         email,
         address,
@@ -389,7 +430,7 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
                   type="text"
                   placeholder="Enter your first name"
                   value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
+                  onChange={(e) => setFirstName(capitalizeWords(e.target.value))}
                   className="w-full bg-transparent text-white placeholder:text-white/50 outline-none text-sm mt-1"
                 />
               </div>
@@ -407,7 +448,7 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
                   type="text"
                   placeholder="Enter your surname"
                   value={surname}
-                  onChange={(e) => setSurname(e.target.value)}
+                  onChange={(e) => setSurname(capitalizeWords(e.target.value))}
                   className="w-full bg-transparent text-white placeholder:text-white/50 outline-none text-sm mt-1"
                 />
               </div>
@@ -425,7 +466,7 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
                   type="text"
                   placeholder="Enter your store name"
                   value={storeName}
-                  onChange={(e) => setStoreName(e.target.value)}
+                  onChange={(e) => setStoreName(capitalizeWords(e.target.value))}
                   className="w-full bg-transparent text-white placeholder:text-white/50 outline-none text-sm mt-1"
                 />
               </div>
@@ -460,6 +501,7 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
 
               {/* Store Address Field with Autocomplete */}
               <div className="relative">
+                {isSearchingAddress && <p className="mb-1 text-xs text-muted-foreground">Searching addresses…</p>}
                 <div
                   className="flex items-center gap-3 rounded-xl px-4 py-2"
                   style={{
@@ -474,6 +516,8 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
                       placeholder="Search address..."
                       value={address}
                       onChange={(e) => handleAddressSearch(e.target.value)}
+                onFocus={() => setIsAddressFocused(true)}
+                onBlur={() => window.setTimeout(() => setIsAddressFocused(false), 150)}
                       onFocus={() => address.length > 2 && setShowAddressSuggestions(true)}
                       onBlur={() => setTimeout(() => setShowAddressSuggestions(false), 200)}
                       className="w-full bg-transparent text-white placeholder:text-white/50 outline-none text-sm mt-1"
@@ -483,7 +527,8 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
                 </div>
 
                 {/* Address Suggestions Dropdown */}
-                {showAddressSuggestions && addressSuggestions.length > 0 && (
+                {addressSearchMessage && <p className="mt-1 text-xs text-muted-foreground">{addressSearchMessage}</p>}
+              {showAddressSuggestions && addressSuggestions.length > 0 && (
                   <div
                     className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-20 max-h-40 overflow-y-auto"
                     style={{

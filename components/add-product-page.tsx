@@ -29,13 +29,24 @@ const categories = [
 
 const units = ["item", "bag", "g", "kg", "ml", "L", "pack"]
 
+function parseUnit(unit?: string | null): { amount: string; type: string } {
+  const raw = (unit ?? "").trim()
+  if (!raw) return { amount: "1", type: "item" }
+  let i = 0
+  while (i < raw.length && ((raw[i] >= "0" && raw[i] <= "9") || raw[i] === ".")) i++
+  const amount = raw.slice(0, i)
+  const type = raw.slice(i).trim()
+  if (!amount || Number.isNaN(Number(amount))) return { amount: "1", type: raw }
+  return { amount, type: type || "item" }
+}
+
 export function AddProductPage({ product, storeId, storeName, storeAddress, onBack, onSave }: AddProductPageProps) {
   const [name, setName] = useState(product?.name || "")
   const [category, setCategory] = useState(product?.category || "Fresh Produce")
   const [price, setPrice] = useState(product?.price?.toString() || "")
-  const initialUnitMatch = product?.unit?.match(/^(\\d+(?:\\.\\d+)?)(.*)$/)
-  const [unitAmount, setUnitAmount] = useState(initialUnitMatch?.[1] || "1")
-  const [unitType, setUnitType] = useState(initialUnitMatch?.[2] || product?.unit || "item")
+  const parsedUnit = parseUnit(product?.unit)
+  const [unitAmount, setUnitAmount] = useState(parsedUnit.amount)
+  const [unitType, setUnitType] = useState(parsedUnit.type)
   const [description, setDescription] = useState(product?.description || "")
   const [available, setAvailable] = useState(product?.available ?? true)
   const [image, setImage] = useState(product?.image || "")
@@ -91,7 +102,7 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, onBa
       const productData = {
         name: name.trim(),
         price: parseFloat(price) || 0,
-        imageUrl: imageUrl || "",
+        imageUrl: imageUrl === "/images/placeholder.jpg" ? "" : imageUrl || "",
         description: description.trim(),
         category,
         unit: `${unitAmount}${unitType}`,
@@ -100,7 +111,7 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, onBa
         storeId,
         storeName,
         storeAddress,
-        createdAt: serverTimestamp(),
+        ...(isEditing ? {} : { createdAt: serverTimestamp() }),
       }
 
       // Save to Firestore
@@ -280,9 +291,9 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, onBa
                   className="w-20 shrink-0 border-l border-border bg-transparent px-2 py-3 text-sm text-card-foreground focus:outline-none cursor-pointer"
                   aria-label="Unit type"
                 >
-                  {units.map((u) => (
-                    <option key={u} value={u}>{u}</option>
-                  ))}
+              {[...new Set(unitType && !units.includes(unitType) ? [unitType, ...units] : units)].map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
                 </select>
               </div>
             </div>

@@ -506,8 +506,9 @@ export default function MerchantApp() {
             />
           )}
           {activePage === "addProduct" && currentUserId && (
-            <AddProductPage
-              product={editingProduct}
+        <AddProductPage
+          key={editingProduct?.id ?? "new"}
+          product={editingProduct}
               storeId={currentUserId}
               storeName={storeData.storeName}
               storeAddress={storeData.storeInfo.address}

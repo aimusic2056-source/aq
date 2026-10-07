@@ -346,14 +346,25 @@ export function OrderPopupPanel({ order, onClose, onStatusUpdate }: OrderPopupPa
           {/* Items List */}
           <div className="px-5 py-4 border-b border-gray-100">
             <p className="text-xs text-gray-400 uppercase tracking-wide mb-3">Items</p>
-            {order.items.map((item, index) => (
-              <div key={index} className="flex justify-between items-center py-2">
-                <span className="text-gray-700 text-sm">
-                  {item.name} {item.quantity && item.quantity > 1 ? `x${item.quantity}` : ""}
-                </span>
-                <span className="text-gray-600 text-sm font-medium">ZMW {item.price.toFixed(2)}</span>
-              </div>
-            ))}
+      {order.items.map((item, index) => (
+        <div key={index} className="flex justify-between items-center py-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <img
+              src={item.image || "/images/placeholder.jpg"}
+              alt=""
+              width={40}
+              height={40}
+              loading="lazy"
+              onError={(event) => { event.currentTarget.src = "/images/placeholder.jpg" }}
+              className="h-10 w-10 shrink-0 object-cover rounded-lg"
+            />
+            <span className="text-gray-700 text-sm">
+              {item.name} {item.quantity && item.quantity > 1 ? `x${item.quantity}` : ""}
+            </span>
+          </div>
+          <span className="text-gray-600 text-sm font-medium">ZMW {item.price.toFixed(2)}</span>
+        </div>
+      ))}
           </div>
 
           {/* Pricing Summary */}
