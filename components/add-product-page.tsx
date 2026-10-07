@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useMemo } from "react"
 import { ChevronLeft, Camera, Plus, Loader2 } from "lucide-react"
 import { doc, collection, setDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase"
@@ -12,20 +12,17 @@ interface AddProductPageProps {
   storeId: string
   storeName: string
   storeAddress: string
+  storeCategory: string
   onBack: () => void
   onSave: (product: Omit<Product, "id"> & { id?: string }) => void
 }
 
-const categories = [
-  "Fresh Produce",
-  "Fast Food",
-  "Healthy",
-  "Desserts",
-  "Japanese",
-  "Beverages",
-  "Snacks",
-  "Other",
-]
+const categoryOptions: Record<string, { label: string; key?: string }[]> = {
+  food: [{ label: "Fast Food", key: "food" }, { label: "Healthy", key: "food" }, { label: "Snacks", key: "food" }, { label: "Fresh Produce", key: "food" }, { label: "Japanese", key: "food" }, { label: "Desserts", key: "dessert" }, { label: "Beverages", key: "drinks" }, { label: "Other", key: "food" }],
+  clothes: ["Men", "Women", "Kids", "Shoes", "Bags & Accessories", "Chitenge & Traditional Wear", "Sportswear", "Underwear & Socks", "Other"].map((label) => ({ label })),
+  hardware: ["Building Materials", "Roofing", "Plumbing", "Electrical", "Paint & Finishes", "Tools & Equipment", "Doors Windows & Locks", "Nails Screws & Fasteners", "Garden & Outdoor", "Safety Gear", "Other"].map((label) => ({ label })),
+  market: [{ label: "Vegetables", key: "vegetables" }, { label: "Fruits", key: "fruits" }, { label: "Dry Food (beans, groundnuts, kapenta, rice)", key: "dry_food" }, { label: "Utensils", key: "utensils" }, { label: "Baskets & Buckets", key: "baskets_buckets" }, { label: "Shoes", key: "shoes" }, { label: "Garden Items", key: "garden" }, { label: "Household Items", key: "household" }, { label: "Other", key: "other" }],
+}
 
 const units = ["item", "bag", "g", "kg", "ml", "L", "pack"]
 
@@ -40,9 +37,13 @@ function parseUnit(unit?: string | null): { amount: string; type: string } {
   return { amount, type: type || "item" }
 }
 
-export function AddProductPage({ product, storeId, storeName, storeAddress, onBack, onSave }: AddProductPageProps) {
+export function AddProductPage({ product, storeId, storeName, storeAddress, storeCategory, onBack, onSave }: AddProductPageProps) {
+  const options = useMemo(() => {
+    const list = categoryOptions[storeCategory] || categoryOptions.food
+    return product?.category && !list.some((option) => option.label === product.category) ? [...list, { label: product.category }] : list
+  }, [storeCategory, product?.category])
   const [name, setName] = useState(product?.name || "")
-  const [category, setCategory] = useState(product?.category || "Fresh Produce")
+  const [category, setCategory] = useState(product?.category || options[0].label)
   const [price, setPrice] = useState(product?.price?.toString() || "")
   const parsedUnit = parseUnit(product?.unit)
   const [unitAmount, setUnitAmount] = useState(parsedUnit.amount)
@@ -50,23 +51,29 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, onBa
   const [description, setDescription] = useState(product?.description || "")
   const [available, setAvailable] = useState(product?.available ?? true)
   const [image, setImage] = useState(product?.image || "")
+  const [images, setImages] = useState<string[]>(product?.imageUrls?.length ? product.imageUrls : product?.image ? [product.image] : [])
+  const [imageFiles, setImageFiles] = useState<(File | null)[]>([null, null, null])
   const [stock, setStock] = useState(product?.stock?.toString() || "0")
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [activeSlot, setActiveSlot] = useState(0)
 
   const isEditing = !!product
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      setImageFile(file)
-      // Show preview immediately
+      if (storeCategory === "clothes") {
+        setImageFiles((current) => current.map((item, index) => index === activeSlot ? file : item))
+      } else setImageFile(file)
       const reader = new FileReader()
       reader.onload = (event) => {
-        setImage(event.target?.result as string)
+        const preview = event.target?.result as string
+        if (storeCategory === "clothes") setImages((current) => current.map((item, index) => index === activeSlot ? preview : item))
+        else setImage(preview)
       }
       reader.readAsDataURL(file)
     }
@@ -83,9 +90,16 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, onBa
       const productId = product?.id || doc(collection(db, "stores", storeId, "products")).id
       
       let imageUrl = image
+      let imageUrls = images
+      if (storeCategory === "clothes") {
+        imageUrls = await Promise.all(images.slice(0, 3).map(async (current, index) => imageFiles[index] ? uploadProductImage(imageFiles[index] as File, storeId, productId) : current))
+        imageUrls = imageUrls.filter(Boolean)
+        if (!imageUrls.length) { setError("Add at least one photo"); setIsSaving(false); return }
+        imageUrl = imageUrls[0]
+      }
 
       // Upload image to Cloudinary if a new file was selected
-      if (imageFile) {
+      if (storeCategory !== "clothes" && imageFile) {
         setIsUploading(true)
         try {
           imageUrl = await uploadProductImage(imageFile, storeId, productId)
@@ -103,6 +117,8 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, onBa
         name: name.trim(),
         price: parseFloat(price) || 0,
         imageUrl: imageUrl === "/images/placeholder.jpg" ? "" : imageUrl || "",
+        ...(storeCategory === "clothes" ? { imageUrls } : {}),
+        ...(storeCategory === "food" || storeCategory === "market" ? { foodCategory: options.find((option) => option.label === category)?.key } : {}),
         description: description.trim(),
         category,
         unit: `${unitAmount}${unitType}`,
@@ -127,6 +143,8 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, onBa
         description: description.trim(),
         available,
         image: imageUrl || "/images/placeholder.jpg",
+        imageUrls: storeCategory === "clothes" ? imageUrls : undefined,
+        foodCategory: storeCategory === "food" || storeCategory === "market" ? options.find((option) => option.label === category)?.key : undefined,
         stock: parseInt(stock) || 0,
       })
     } catch (err) {
@@ -242,10 +260,8 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, onBa
                 backgroundPosition: "right 12px center",
               }}
             >
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
+              {options.map((option) => (
+                <option key={option.label} value={option.label}>{option.label}</option>
               ))}
             </select>
           </div>

@@ -33,12 +33,8 @@ export function StoreInfoPage({ storeInfo, storeId, onBack, onSave }: StoreInfoP
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!isAddressFocused || address.trim().length <= 2) {
-      setAddressSuggestions([])
-      setShowAddressSuggestions(false)
-      setAddressMessage(null)
-      return
-    }
+    if (!isAddressFocused) { setAddressSuggestions([]); setShowAddressSuggestions(false); setAddressMessage(null); return }
+    if (address.trim().length <= 2) { setAddressSuggestions([]); setShowAddressSuggestions(true); setAddressMessage(isAddressSearchConfigured ? null : "Address suggestions are unavailable right now, you can still type your address"); return }
     if (!isAddressSearchConfigured) {
       setAddressMessage("Address suggestions are unavailable; enter the address manually.")
       return

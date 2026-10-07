@@ -133,12 +133,8 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
   }, [])
 
   useEffect(() => {
-    if (!isAddressFocused || address.trim().length <= 2) {
-      setAddressSuggestions([])
-      setShowAddressSuggestions(false)
-      setAddressSearchMessage(null)
-      return
-    }
+    if (!isAddressFocused) { setAddressSuggestions([]); setShowAddressSuggestions(false); setAddressSearchMessage(null); return }
+    if (address.trim().length <= 2) { setAddressSuggestions([]); setShowAddressSuggestions(true); setAddressSearchMessage(isAddressSearchConfigured ? null : "Address suggestions are unavailable right now, you can still type your address"); return }
     if (!isAddressSearchConfigured) {
       setAddressSearchMessage("Address suggestions are unavailable; enter your address manually.")
       return
@@ -516,10 +512,8 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
                       placeholder="Search address..."
                       value={address}
                       onChange={(e) => handleAddressSearch(e.target.value)}
-                onFocus={() => setIsAddressFocused(true)}
+                onFocus={() => { setIsAddressFocused(true); if (address.length > 2) setShowAddressSuggestions(true) }}
                 onBlur={() => window.setTimeout(() => setIsAddressFocused(false), 150)}
-                      onFocus={() => address.length > 2 && setShowAddressSuggestions(true)}
-                      onBlur={() => setTimeout(() => setShowAddressSuggestions(false), 200)}
                       className="w-full bg-transparent text-white placeholder:text-white/50 outline-none text-sm mt-1"
                     />
                   </div>
