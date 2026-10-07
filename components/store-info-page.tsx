@@ -33,21 +33,35 @@ export function StoreInfoPage({ storeInfo, storeId, onBack, onSave }: StoreInfoP
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!isAddressFocused) { setAddressSuggestions([]); setShowAddressSuggestions(false); setAddressMessage(null); return }
-    if (address.trim().length <= 2) { setAddressSuggestions([]); setShowAddressSuggestions(true); setAddressMessage(isAddressSearchConfigured ? null : "Address suggestions are unavailable right now, you can still type your address"); return }
-    if (!isAddressSearchConfigured) {
-      setAddressMessage("Address suggestions are unavailable; enter the address manually.")
+    if (!isAddressFocused) {
+      setAddressSuggestions([])
+      setShowAddressSuggestions(false)
+      setAddressMessage(null)
       return
     }
+
+    setShowAddressSuggestions(true)
+    const query = address.trim()
+    if (query.length < 3) {
+      setAddressSuggestions([])
+      setIsSearchingAddress(false)
+      setAddressMessage(isAddressSearchConfigured ? null : "Address suggestions are unavailable right now, you can still type your address")
+      return
+    }
+    if (!isAddressSearchConfigured) {
+      setIsSearchingAddress(false)
+      setAddressMessage("Address suggestions are unavailable right now, you can still type your address")
+      return
+    }
+
     setIsSearchingAddress(true)
     setAddressMessage(null)
     const timer = window.setTimeout(async () => {
-      const results = await searchAddress(address)
+      const results = await searchAddress(query)
       setAddressSuggestions(results)
-      setShowAddressSuggestions(results.length > 0)
-      if (results.length === 0) setAddressMessage("No matching addresses found. You can enter it manually.")
       setIsSearchingAddress(false)
-    }, 350)
+      setAddressMessage(results.length === 0 ? "No matches, you can still type your address" : null)
+    }, 300)
     return () => window.clearTimeout(timer)
   }, [address, isAddressFocused])
 
@@ -57,17 +71,21 @@ export function StoreInfoPage({ storeInfo, storeId, onBack, onSave }: StoreInfoP
   }
 
   const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) return setAddressMessage("Location is not available in this browser.")
+    if (!navigator.geolocation) {
+      setAddressMessage("Location is not available in this browser. You can still type your address")
+      return
+    }
     setIsSearchingAddress(true)
     navigator.geolocation.getCurrentPosition(async ({ coords }) => {
       const result = await reverseGeocode(coords.latitude, coords.longitude)
-      setAddress(result?.fullAddress ?? `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}`)
+      setAddress(result?.fullAddress || `Pinned location (${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)})`)
       setAddressCoords({ lat: coords.latitude, lng: coords.longitude })
       setIsSearchingAddress(false)
-    }, () => {
+      setShowAddressSuggestions(false)
+    }, (positionError) => {
       setIsSearchingAddress(false)
-      setAddressMessage("We could not access your location. Enter the address manually.")
-    })
+      setAddressMessage(positionError.code === 1 ? "Location permission was denied. You can still type your address" : positionError.code === 3 ? "Location request timed out. You can still type your address" : "We could not access your location. You can still type your address")
+    }, { enableHighAccuracy: true, timeout: 10000 })
   }
 
   const handleSelectAddress = (suggestion: AddressSuggestion) => {
@@ -228,15 +246,21 @@ export function StoreInfoPage({ storeInfo, storeId, onBack, onSave }: StoreInfoP
   onBlur={() => setTimeout(() => setIsAddressFocused(false), 200)}
                 className="w-full pl-11 pr-4 py-3 bg-card border border-border rounded-xl text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
   />
-  {(isSearchingAddress || addressMessage) && <p className="mt-1 text-xs text-muted-foreground">{isSearchingAddress ? "Searching addresses…" : addressMessage}</p>}
-  {showAddressSuggestions && addressSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-20 max-h-48 overflow-y-auto bg-card border border-border shadow-lg">
+  {(isSearchingAddress || addressMessage) && <p className="mt-1 text-xs text-muted-foreground">{isSearchingAddress ? "Searching…" : addressMessage}</p>}
+  {showAddressSuggestions && (
+                <div className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-30 max-h-56 overflow-y-auto bg-card border border-border shadow-lg">
+                  <button
+                    type="button"
+                    onPointerDown={(event) => { event.preventDefault(); handleUseCurrentLocation() }}
+                    className="w-full text-left px-4 py-2 text-sm font-medium text-card-foreground hover:bg-accent transition-colors"
+                  >
+                    Use my current location
+                  </button>
                   {addressSuggestions.map((suggestion) => (
                     <button
                       key={suggestion.id}
                       type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => handleSelectAddress(suggestion)}
+                      onPointerDown={(event) => { event.preventDefault(); handleSelectAddress(suggestion) }}
                       className="w-full text-left px-4 py-2 text-sm text-card-foreground hover:bg-accent transition-colors"
                     >
                       <div className="font-medium">{suggestion.name}</div>
