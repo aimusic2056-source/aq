@@ -57,8 +57,8 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
   const [available, setAvailable] = useState(product?.available ?? true)
   const [image, setImage] = useState(product?.image || "")
   const [images, setImages] = useState<string[]>(() => {
-    const existingImages = product?.imageUrls?.length ? product.imageUrls : product?.images?.length ? product.images : product?.image ? [product.image] : []
-    return [...existingImages.slice(0, 3), "", ""].slice(0, 3)
+    const existing = product?.imageUrls?.length ? product.imageUrls : product?.images?.length ? product.images : product?.image && product.image !== "/images/placeholder.jpg" ? [product.image] : []
+    return Array.from({ length: 3 }, (_, i) => existing[i] ?? "")
   })
   const [imageFiles, setImageFiles] = useState<(File | null)[]>([null, null, null])
   const [stock, setStock] = useState(product?.stock?.toString() || "0")
@@ -85,9 +85,9 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
     setImages((current) => {
       const previous = current[index]
       if (previous?.startsWith("blob:")) URL.revokeObjectURL(previous)
-      return current.map((item, itemIndex) => itemIndex === index ? URL.createObjectURL(file) : item)
+      return Array.from({ length: 3 }, (_, itemIndex) => itemIndex === index ? URL.createObjectURL(file) : current[itemIndex] ?? "")
     })
-    setImageFiles((current) => current.map((item, itemIndex) => itemIndex === index ? file : item))
+    setImageFiles((current) => Array.from({ length: 3 }, (_, itemIndex) => itemIndex === index ? file : current[itemIndex] ?? null))
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,9 +104,9 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
     setImages((current) => {
       const previous = current[slot]
       if (previous?.startsWith("blob:")) URL.revokeObjectURL(previous)
-      return current.map((item, index) => index === slot ? "" : item)
+      return Array.from({ length: 3 }, (_, index) => index === slot ? "" : current[index] ?? "")
     })
-    setImageFiles((current) => current.map((item, index) => index === slot ? null : item))
+    setImageFiles((current) => Array.from({ length: 3 }, (_, index) => index === slot ? null : current[index] ?? null))
   }
 
   const handleSave = async () => {
