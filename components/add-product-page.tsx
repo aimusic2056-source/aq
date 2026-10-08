@@ -66,7 +66,7 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
   const [isUploading, setIsUploading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const singleImageInputRef = useRef<HTMLInputElement>(null)
   const imagesRef = useRef(images)
   imagesRef.current = images
 
@@ -262,20 +262,19 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
                   )
                 })}
               </div>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
             </div>
           ) : (
             <div className="flex justify-center">
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => singleImageInputRef.current?.click()}
                 disabled={isUploading || isSaving}
                 className="relative flex h-36 w-full max-w-xs flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border-2 border-dashed border-border bg-card transition-colors hover:bg-accent/50 disabled:cursor-not-allowed"
               >
                 {isUploading && <Loader2 className="size-6 animate-spin text-primary" />}
                 {image ? <img src={image} alt="Product preview" className="h-full w-full rounded-xl object-cover" /> : <><Camera className="size-6 text-primary" /><span className="text-sm text-muted-foreground">Tap to Upload Image</span></>}
               </button>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              <input ref={singleImageInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
             </div>
           )}
 
