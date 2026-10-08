@@ -249,13 +249,18 @@ export function AddProductPage({ product, storeId, storeName, storeAddress, stor
                   const slotImage = images[index] || ""
                   return (
                     <div key={index} className="relative">
-                      <input id={`product-photo-${index}`} type="file" accept="image/*" className="sr-only" onChange={(e) => handlePhotoChange(index, e)} disabled={isUploading || isSaving} />
-                      <label
-                        htmlFor={`product-photo-${index}`}
-                        className="relative flex aspect-square w-full cursor-pointer flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-2 border-dashed border-border bg-card transition-colors hover:bg-accent/50"
-                      >
-                        {slotImage ? <img src={slotImage} alt={`${name || "Product"} photo ${index + 1}`} className="h-full w-full object-cover" /> : <><Camera className="size-6 text-primary" /><Plus className="absolute size-3 translate-x-3 -translate-y-3 text-primary" /></>}
-                      </label>
+                      <div className="relative flex aspect-square w-full flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-2 border-dashed border-border bg-card transition-colors hover:bg-accent/50">
+                        <input
+                          id={`product-photo-${index}`}
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handlePhotoChange(index, e)}
+                          disabled={isUploading || isSaving}
+                          aria-label={index === 0 ? "Main photo (required)" : `Optional photo ${index + 1}`}
+                          className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                        />
+                        {slotImage ? <img src={slotImage} alt={`${name || "Product"} photo ${index + 1}`} className="pointer-events-none h-full w-full object-cover" /> : <><Camera className="pointer-events-none size-6 text-primary" /><Plus className="pointer-events-none absolute size-3 translate-x-3 -translate-y-3 text-primary" /></>}
+                      </div>
                       {slotImage && <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); removeClothingImage(index) }} disabled={isUploading || isSaving} className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm" aria-label={`Remove photo ${index + 1}`}><X className="size-3" /></button>}
                       <p className="mt-1 text-center text-[10px] text-muted-foreground">{index === 0 ? "Main photo (required)" : "Optional"}</p>
                     </div>
