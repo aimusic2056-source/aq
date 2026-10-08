@@ -14,6 +14,8 @@ interface UseRealtimeOrdersReturn {
   todayOrders: FirestoreOrder[]
   pastOrders: FirestoreOrder[]
   weeklyRevenueOrders: FirestoreOrder[]
+  cancelledOrders: FirestoreOrder[]
+  lastCancellation: { id: string; orderId: string; reason: string; at: number } | null
   isLoading: boolean
   error: string | null
   activeOrders: FirestoreOrder[]
@@ -33,6 +35,8 @@ export function useRealtimeOrders(storeId: string | null): UseRealtimeOrdersRetu
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pendingOrderForPopup, setPendingOrderForPopup] = useState<FirestoreOrder | null>(null)
+  const [cancelledOrders, setCancelledOrders] = useState<FirestoreOrder[]>([])
+  const [lastCancellation, setLastCancellation] = useState<UseRealtimeOrdersReturn["lastCancellation"]>(null)
   const [dismissedOrderIds, setDismissedOrderIds] = useState<Set<string>>(new Set())
   const previousOrdersRef = useRef<Map<string, FirestoreOrder>>(new Map())
   const initializedRef = useRef(false)
@@ -47,7 +51,7 @@ export function useRealtimeOrders(storeId: string | null): UseRealtimeOrdersRetu
   useEffect(() => {
     if (!storeId) { setIsLoading(false); return }
     setIsLoading(true); setError(null); initializedRef.current = false
-    const ordersQuery = query(collection(db, "orders"), where("storeId", "==", storeId), where("status", "in", [...ALL_ORDER_STATUSES]), orderBy("createdAt", "desc"))
+    const ordersQuery = query(collection(db, "orders"), where("storeId", "==", storeId), where("status", "in", [...ALL_ORDER_STATUSES, "cancelled"]), orderBy("createdAt", "desc"))
     return onSnapshot(ordersQuery, (snapshot) => {
       const orders = snapshot.docs.map((snap) => {
         const data = snap.data()
@@ -57,8 +61,16 @@ export function useRealtimeOrders(storeId: string | null): UseRealtimeOrdersRetu
       if (initializedRef.current && orders.some((order) => order.driverStatus === "at_store" && previous.get(order.id)?.driverStatus !== "at_store")) {
         const audio = new Audio("/sounds/driver.mp3"); void audio.play().catch(() => {})
       }
+      if (initializedRef.current) {
+        const cancelled = orders.find((order) => {
+          const previousStatus = previous.get(order.id)?.status
+          return order.status === "cancelled" && ["pending", "accepted", "ready_for_pickup", "driver_assigned", "at_store"].includes(previousStatus || "")
+        })
+        if (cancelled) setLastCancellation({ id: cancelled.id, orderId: cancelled.orderId, reason: (snapshot.docs.find((snap) => snap.id === cancelled.id)?.data().cancellationReason as string) || "", at: Date.now() })
+      }
       previousOrdersRef.current = new Map(orders.map((order) => [order.id, order]))
-      setPendingOrders(orders.filter((order) => order.status === "pending")); setAcceptedOrders(orders.filter((order) => order.status === "accepted")); setCompletedOrders(orders.filter((order) => isOrderCompleted(order.status))); setAllOrders(orders); setIsLoading(false); initializedRef.current = true
+      const activeOrders = orders.filter((order) => order.status !== "cancelled")
+      setCancelledOrders(orders.filter((order) => order.status === "cancelled")); setPendingOrders(activeOrders.filter((order) => order.status === "pending")); setAcceptedOrders(activeOrders.filter((order) => order.status === "accepted")); setCompletedOrders(activeOrders.filter((order) => isOrderCompleted(order.status))); setAllOrders(activeOrders); setIsLoading(false); initializedRef.current = true
     }, (err) => { console.error("Error listening to orders:", err); setError(err.message); setIsLoading(false) })
   }, [storeId])
 
@@ -81,6 +93,6 @@ export function useRealtimeOrders(storeId: string | null): UseRealtimeOrdersRetu
     setPendingOrderForPopup(null)
   }, [pendingOrderForPopup])
   const activeOrders = [...pendingOrders.sort(byOldest), ...acceptedOrders.sort(byOldest)]
-  return { pendingOrders, acceptedOrders, completedOrders, allOrders, activeOrders, pendingOrderForPopup, dismissPopup, todayOrders: allOrders.filter((o) => isToday(o.createdAt)), pastOrders: allOrders.filter((o) => isOrderCompleted(o.status) && isWithinPastDays(o.createdAt, 90)), weeklyRevenueOrders: allOrders.filter((o) => { const week = new Date(); week.setDate(week.getDate() - 7); return o.createdAt >= week && isRevenueOrder(o.status) }), isLoading, error, handleStatusUpdate }
+  return { pendingOrders, acceptedOrders, completedOrders, allOrders, activeOrders, pendingOrderForPopup, dismissPopup, todayOrders: allOrders.filter((o) => isToday(o.createdAt)), pastOrders: allOrders.filter((o) => isOrderCompleted(o.status) && isWithinPastDays(o.createdAt, 90)), weeklyRevenueOrders: allOrders.filter((o) => { const week = new Date(); week.setDate(week.getDate() - 7); return o.createdAt >= week && isRevenueOrder(o.status) }), cancelledOrders, lastCancellation, isLoading, error, handleStatusUpdate }
 }
 

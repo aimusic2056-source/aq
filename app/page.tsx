@@ -23,6 +23,7 @@ import { OrderPopupPanel } from "@/components/order-popup-panel"
 import { useRealtimeOrders } from "@/hooks/use-realtime-orders"
 import { placeholderStoreData } from "@/lib/store-data"
 import { Toaster } from "@/components/ui/toaster"
+import { useToast } from "@/hooks/use-toast"
 import type { StoreData, Product, OpeningHour, StoreInfo } from "@/lib/store-data"
 
 type AuthPage = "welcome" | "login" | "signup"
@@ -48,7 +49,21 @@ export default function MerchantApp() {
     pendingOrderForPopup,
     dismissPopup,
     handleStatusUpdate,
+    lastCancellation,
   } = useRealtimeOrders(currentUserId)
+  const { toast } = useToast()
+
+  useEffect(() => {
+    if (!lastCancellation) return
+    toast({
+      title: `Order #${lastCancellation.orderId} was cancelled`,
+      description: `The customer cancelled this order.${lastCancellation.reason ? ` Reason: ${lastCancellation.reason}` : ""}`,
+      duration: 8000,
+    })
+    if (pendingOrderForPopup?.id === lastCancellation.id || pendingOrderForPopup?.orderId === lastCancellation.orderId) {
+      dismissPopup()
+    }
+  }, [lastCancellation, pendingOrderForPopup, dismissPopup, toast])
 
   const pageOrder = ["dashboard", "orders", "notifications", "payments", "settings"]
 

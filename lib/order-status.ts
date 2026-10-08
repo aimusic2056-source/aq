@@ -1,3 +1,5 @@
+export const CANCELLED_STATUS = "cancelled"
+
 export const ALL_ORDER_STATUSES = [
   "pending",
   "accepted",
