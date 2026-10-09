@@ -1,0 +1,9 @@
+"use client"
+import { useMemo, useState } from "react"
+import { Phone } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { useCall } from "@/contexts/call-context"
+import { getCallOptions } from "@/lib/call-rules"
+import type { FirestoreOrder } from "@/components/order-popup-panel"
+import { toast } from "@/hooks/use-toast"
+export function StoreCallButton({ orders, storeCategory }: { orders: FirestoreOrder[]; storeCategory: string }) { const { callState, startCall } = useCall(); const options = useMemo(() => getCallOptions(orders, storeCategory), [orders, storeCategory]); const [open, setOpen] = useState(false); if (!options.length || callState !== "idle") return null; const call = (option: typeof options[number]) => { setOpen(false); void startCall(option.orderDocId, option.peerName).catch((error) => toast({ title: "Call unavailable", description: error instanceof Error ? error.message : "Unable to start call" })) }; if (options.length === 1) return <Button onClick={() => call(options[0])} className="fixed right-3 top-[calc(env(safe-area-inset-top)+12px)] z-[60] rounded-full shadow-lg"><Phone data-icon="inline-start" />{options[0].label}</Button>; return <><Button onClick={() => setOpen((value) => !value)} className="fixed right-3 top-[calc(env(safe-area-inset-top)+12px)] z-[60] rounded-full shadow-lg"><Phone data-icon="inline-start" />Call ({options.length})</Button>{open && <div className="fixed right-3 top-[calc(env(safe-area-inset-top)+58px)] z-[60] flex w-72 flex-col gap-2 rounded-xl border bg-background p-3 shadow-xl">{options.map((option) => <div key={option.orderDocId} className="flex items-center justify-between gap-2 text-sm"><span>Order #{option.shortId} · {option.peerName}</span><Button size="sm" variant="outline" onClick={() => call(option)}>{option.label}</Button></div>)}</div>}</> }

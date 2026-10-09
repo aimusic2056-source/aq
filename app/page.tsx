@@ -24,6 +24,9 @@ import { useRealtimeOrders } from "@/hooks/use-realtime-orders"
 import { placeholderStoreData } from "@/lib/store-data"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/hooks/use-toast"
+import { CallProvider } from "@/contexts/call-context"
+import { CallOverlay } from "@/components/call-overlay"
+import { StoreCallButton } from "@/components/store-call-button"
 import type { StoreData, Product, OpeningHour, StoreInfo } from "@/lib/store-data"
 
 type AuthPage = "welcome" | "login" | "signup"
@@ -460,8 +463,11 @@ export default function MerchantApp() {
 
   // Show main dashboard app
   return (
-    <div className="flex flex-col h-dvh w-full max-w-[1200px] mx-auto bg-background">
-      <Toaster />
+    <CallProvider>
+      <div className="flex flex-col h-dvh w-full max-w-[1200px] mx-auto bg-background">
+        <Toaster />
+        <StoreCallButton orders={allOrders} storeCategory={storeData.storeCategory} />
+        <CallOverlay />
       {/* Global Order Popup Panel */}
       {pendingOrderForPopup && (
         <OrderPopupPanel
@@ -597,6 +603,7 @@ export default function MerchantApp() {
           }
         }
       `}</style>
-    </div>
+      </div>
+    </CallProvider>
   )
 }
