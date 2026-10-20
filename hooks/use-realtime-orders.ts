@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { collection, query, where, onSnapshot, orderBy, Timestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { toast } from "@/hooks/use-toast"
 import { ALL_ORDER_STATUSES, isOrderCompleted, isRevenueOrder, isToday, isWithinPastDays } from "@/lib/order-status"
 import type { FirestoreOrder } from "@/components/order-popup-panel"
 
@@ -55,13 +56,18 @@ export function useRealtimeOrders(storeId: string | null): UseRealtimeOrdersRetu
     return onSnapshot(ordersQuery, (snapshot) => {
       const orders = snapshot.docs.map((snap) => {
         const data = snap.data()
-        return { id: snap.id, orderId: data.orderId || snap.id.slice(-5).toUpperCase(), userName: data.userName || "Customer", destinationAddress: data.destinationAddress || "", items: data.items || [], subtotal: data.subtotal || 0, deliveryFee: data.deliveryFee || 0, total: data.total || 0, status: data.status, storeId: data.storeId, createdAt: toDate(data.createdAt), driverStatus: data.driverStatus, driverSnapshot: data.driverSnapshot, driver: data.driver } as FirestoreOrder
+        return { id: snap.id, orderId: data.orderId || snap.id.slice(-5).toUpperCase(), userName: data.userName || "Customer", destinationAddress: data.destinationAddress || "", items: data.items || [], subtotal: data.subtotal || 0, deliveryFee: data.deliveryFee || 0, total: data.total || 0, status: data.status, storeId: data.storeId, createdAt: toDate(data.createdAt), rejectionReason: data.rejectionReason, autoRejected: data.autoRejected, driverStatus: data.driverStatus, driverSnapshot: data.driverSnapshot, driver: data.driver } as FirestoreOrder
       })
       const previous = previousOrdersRef.current
       if (initializedRef.current && orders.some((order) => order.driverStatus === "at_store" && previous.get(order.id)?.driverStatus !== "at_store")) {
         const audio = new Audio("/sounds/driver.mp3"); void audio.play().catch(() => {})
       }
       if (initializedRef.current) {
+        const expired = orders.find((order) => {
+          const previousOrder = previous.get(order.id)
+          return previousOrder?.status === "pending" && order.status === "rejected" && order.rejectionReason === "still_closed" && order.autoRejected === true
+        })
+        if (expired) toast({ title: `Order #${expired.orderId} expired because it wasn't accepted in time` })
         const cancelled = orders.find((order) => {
           const previousStatus = previous.get(order.id)?.status
           return order.status === "cancelled" && ["pending", "accepted", "ready_for_pickup", "driver_assigned", "at_store"].includes(previousStatus || "")

@@ -27,6 +27,8 @@ export interface FirestoreOrder {
   status: "pending" | "accepted" | "ready_for_pickup" | "rejected" | "completed" | "delivered" | "picked_up" | "at_store" | "cancelled"
   storeId: string
   createdAt: Date
+  rejectionReason?: RejectionReason
+  autoRejected?: boolean
   driverStatus?: string
   driverSnapshot?: {
     brand?: string
@@ -55,6 +57,7 @@ export function OrderPopupPanel({ order, onClose, onStatusUpdate, hidden: isHidd
   const [rejectionReason, setRejectionReason] = useState<"still_closed" | "out_of_stock" | null>(null)
   const [isMarkingReady, setIsMarkingReady] = useState(false)
   const [localStatus, setLocalStatus] = useState(order.status)
+  const [timeRemainingMs, setTimeRemainingMs] = useState(() => Math.max(0, 5 * 60 * 1000 - (Date.now() - order.createdAt.getTime())))
   const [isVisible, setIsVisible] = useState(false)
   const [isExiting, setIsExiting] = useState(false)
   
@@ -85,6 +88,14 @@ export function OrderPopupPanel({ order, onClose, onStatusUpdate, hidden: isHidd
     setLocalStatus(order.status)
   }, [order.status])
 
+  useEffect(() => {
+    if (localStatus !== "pending") return
+    const updateTimeRemaining = () => setTimeRemainingMs(Math.max(0, 5 * 60 * 1000 - (Date.now() - order.createdAt.getTime())))
+    updateTimeRemaining()
+    const timer = setInterval(updateTimeRemaining, 1000)
+    return () => clearInterval(timer)
+  }, [localStatus, order.createdAt])
+
   // Calculate ETA (minutes since order created)
   const getETA = (createdAt: Date) => {
     const now = new Date()
@@ -94,6 +105,9 @@ export function OrderPopupPanel({ order, onClose, onStatusUpdate, hidden: isHidd
     if (diffMins === 1) return "1 min"
     return `${diffMins} mins`
   }
+
+  const countdownSeconds = Math.floor(timeRemainingMs / 1000)
+  const countdownText = `${Math.floor(countdownSeconds / 60)}:${String(countdownSeconds % 60).padStart(2, "0")}`
 
   // Smooth exit animation then close
   const animateExit = () => {
@@ -327,6 +341,7 @@ export function OrderPopupPanel({ order, onClose, onStatusUpdate, hidden: isHidd
             <div>
               <h2 className="text-xl font-bold text-gray-900">Order #{order.orderId}</h2>
               <p className="text-sm text-gray-500 mt-0.5">New incoming order</p>
+              {localStatus === "pending" && <p className="text-xs text-gray-400 mt-1">Auto-declines in {countdownText}</p>}
             </div>
             <div className="flex flex-col items-end">
               <span className="text-xs text-gray-400 uppercase tracking-wide">ETA</span>
