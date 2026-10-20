@@ -466,7 +466,6 @@ export default function MerchantApp() {
     <CallProvider>
       <div className="flex flex-col h-dvh w-full max-w-[1200px] mx-auto bg-background">
         <Toaster />
-        <StoreCallButton orders={allOrders} storeCategory={storeData.storeCategory} />
         <CallOverlay />
       {/* Global Order Popup Panel */}
       {pendingOrderForPopup && (
@@ -570,6 +569,8 @@ export default function MerchantApp() {
   )}
         </div>
       </div>
+
+      <StoreCallButton orders={allOrders} storeCategory={storeData.storeCategory} />
 
       {/* Fixed Bottom Navigation - hidden on sub-pages */}
       {!hideBottomNav && (
