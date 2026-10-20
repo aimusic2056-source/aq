@@ -6,8 +6,6 @@ import { createUserWithEmailAndPassword } from "firebase/auth"
 import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase"
 import { isAddressSearchConfigured, reverseGeocode, searchAddress, type AddressSuggestion } from "@/lib/address-service"
-import { WaterDroplets } from "@/components/water-droplets"
-
 interface SignupPageProps {
   onSignupSuccess: (userData: {
     uid: string
@@ -272,20 +270,18 @@ export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
 
   return (
     <div className="relative min-h-dvh w-full overflow-hidden">
-      {/* Background Image */}
-      <div
-        className="absolute inset-0 z-0"
-        style={{
-          backgroundImage: step === 1
-            ? "url('/images/alestore.png')"
-            : "url('/images/store.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
+      {/* Background Video */}
+      <video
+        src="/videos/ale_droplets.mp4"
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="auto"
+        poster="/images/alestore.png"
+        onError={(event) => event.currentTarget.pause()}
+        className="absolute inset-0 z-0 size-full object-cover object-center"
       />
-
-      {/* Water Droplets Animation Layer */}
-      <WaterDroplets />
 
       {/* Content Container */}
       <div className="relative z-10 min-h-dvh flex items-center justify-center p-4">

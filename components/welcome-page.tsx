@@ -1,7 +1,5 @@
 "use client"
 
-import { WaterDroplets } from "@/components/water-droplets"
-
 interface WelcomePageProps {
   onSignIn: () => void
   onSignUp: () => void
@@ -10,18 +8,18 @@ interface WelcomePageProps {
 export function WelcomePage({ onSignIn, onSignUp }: WelcomePageProps) {
   return (
     <div className="relative min-h-dvh w-full overflow-hidden">
-      {/* Background Image - warm rainy street scene */}
-      <div 
-        className="absolute inset-0 z-0"
-        style={{
-          backgroundImage: "url('/images/bike.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
+      {/* Background Video - warm rainy street scene */}
+      <video
+        src="/videos/bike_droplets.mp4"
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="auto"
+        poster="/images/bike.png"
+        onError={(event) => event.currentTarget.pause()}
+        className="absolute inset-0 z-0 size-full object-cover object-center"
       />
-
-      {/* Water Droplets Animation Layer */}
-      <WaterDroplets />
 
       {/* Content Container */}
       <div className="relative z-10 min-h-dvh flex items-center justify-center p-4">
