@@ -30,7 +30,8 @@ const storeCategories = [
   { value: "food", label: "Food" },
   { value: "clothes", label: "Clothes" },
   { value: "hardware", label: "Hardware" },
-  { value: "market", label: "Shop & Market" },
+  { value: "small_shop", label: "Small Shops" },
+  { value: "market", label: "Soweto Market" },
 ]
 
 export function SignupPage({ onSignupSuccess, onSignIn }: SignupPageProps) {
