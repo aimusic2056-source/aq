@@ -24,7 +24,7 @@ export interface FirestoreOrder {
   subtotal: number
   deliveryFee: number
   total: number
-  status: "pending" | "accepted" | "ready_for_pickup" | "rejected" | "completed" | "delivered" | "picked_up" | "at_store"
+  status: "pending" | "accepted" | "ready_for_pickup" | "rejected" | "completed" | "delivered" | "picked_up" | "at_store" | "cancelled"
   storeId: string
   createdAt: Date
   driverStatus?: string
@@ -44,9 +44,11 @@ interface OrderPopupPanelProps {
   order: FirestoreOrder
   onClose: () => void
   onStatusUpdate: (orderId: string, newStatus: string) => void
+  hidden: boolean
+  onHiddenChange: (hidden: boolean) => void
 }
 
-export function OrderPopupPanel({ order, onClose, onStatusUpdate }: OrderPopupPanelProps) {
+export function OrderPopupPanel({ order, onClose, onStatusUpdate, hidden: isHidden, onHiddenChange }: OrderPopupPanelProps) {
   const [isAccepting, setIsAccepting] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
   const [isReasonPanelOpen, setIsReasonPanelOpen] = useState(false)
@@ -59,7 +61,6 @@ export function OrderPopupPanel({ order, onClose, onStatusUpdate }: OrderPopupPa
   // Drag state
   const [dragY, setDragY] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
-  const [isHidden, setIsHidden] = useState(false)
   
   const panelRef = useRef<HTMLDivElement>(null)
   const handleAreaRef = useRef<HTMLDivElement>(null)
@@ -147,7 +148,7 @@ export function OrderPopupPanel({ order, onClose, onStatusUpdate }: OrderPopupPa
       // Currently hidden - check if should show
       if (velocityRef.current > velocityThreshold || dragY > HIDDEN_POSITION + threshold) {
         setDragY(0)
-        setIsHidden(false)
+        onHiddenChange(false)
       } else {
         setDragY(HIDDEN_POSITION)
       }
@@ -155,7 +156,7 @@ export function OrderPopupPanel({ order, onClose, onStatusUpdate }: OrderPopupPa
       // Currently visible - check if should hide
       if (velocityRef.current < -velocityThreshold || dragY < -threshold) {
         setDragY(HIDDEN_POSITION)
-        setIsHidden(true)
+        onHiddenChange(true)
       } else {
         setDragY(0)
       }
@@ -201,14 +202,14 @@ export function OrderPopupPanel({ order, onClose, onStatusUpdate }: OrderPopupPa
       if (isHidden) {
         if (velocityRef.current > velocityThreshold || dragY > HIDDEN_POSITION + threshold) {
           setDragY(0)
-          setIsHidden(false)
+          onHiddenChange(false)
         } else {
           setDragY(HIDDEN_POSITION)
         }
       } else {
         if (velocityRef.current < -velocityThreshold || dragY < -threshold) {
           setDragY(HIDDEN_POSITION)
-          setIsHidden(true)
+          onHiddenChange(true)
         } else {
           setDragY(0)
         }

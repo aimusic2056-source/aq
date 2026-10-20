@@ -37,7 +37,7 @@ export function useRealtimeOrders(storeId: string | null): UseRealtimeOrdersRetu
   const [pendingOrderForPopup, setPendingOrderForPopup] = useState<FirestoreOrder | null>(null)
   const [cancelledOrders, setCancelledOrders] = useState<FirestoreOrder[]>([])
   const [lastCancellation, setLastCancellation] = useState<UseRealtimeOrdersReturn["lastCancellation"]>(null)
-  const [dismissedOrderIds, setDismissedOrderIds] = useState<Set<string>>(new Set())
+  const [closingIds, setClosingIds] = useState<Set<string>>(new Set())
   const previousOrdersRef = useRef<Map<string, FirestoreOrder>>(new Map())
   const initializedRef = useRef(false)
   const orderAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -84,13 +84,19 @@ export function useRealtimeOrders(storeId: string | null): UseRealtimeOrdersRetu
   }, [pendingOrders.length])
 
   useEffect(() => {
-    const next = pendingOrders.find((order) => !dismissedOrderIds.has(order.id))
-    if (next && !pendingOrderForPopup) setPendingOrderForPopup(next)
-  }, [pendingOrders, dismissedOrderIds, pendingOrderForPopup])
+    const tracked = [...pendingOrders, ...acceptedOrders].sort(byOldest)
+    setClosingIds((ids) => {
+      const next = new Set([...ids].filter((id) => tracked.some((order) => order.id === id)))
+      return next.size === ids.size ? ids : next
+    })
+    const next = tracked.find((order) => !closingIds.has(order.id)) ?? null
+    setPendingOrderForPopup(next)
+  }, [pendingOrders, acceptedOrders, closingIds])
 
   const dismissPopup = useCallback(() => {
-    if (pendingOrderForPopup) setDismissedOrderIds((ids) => new Set(ids).add(pendingOrderForPopup.id))
-    setPendingOrderForPopup(null)
+    if (!pendingOrderForPopup) return
+    setClosingIds((ids) => new Set(ids).add(pendingOrderForPopup.id))
+    setTimeout(() => setClosingIds((ids) => { const next = new Set(ids); next.delete(pendingOrderForPopup.id); return next }), 350)
   }, [pendingOrderForPopup])
   const activeOrders = [...pendingOrders.sort(byOldest), ...acceptedOrders.sort(byOldest)]
   return { pendingOrders, acceptedOrders, completedOrders, allOrders, activeOrders, pendingOrderForPopup, dismissPopup, todayOrders: allOrders.filter((o) => isToday(o.createdAt)), pastOrders: allOrders.filter((o) => isOrderCompleted(o.status) && isWithinPastDays(o.createdAt, 90)), weeklyRevenueOrders: allOrders.filter((o) => { const week = new Date(); week.setDate(week.getDate() - 7); return o.createdAt >= week && isRevenueOrder(o.status) }), cancelledOrders, lastCancellation, isLoading, error, handleStatusUpdate }

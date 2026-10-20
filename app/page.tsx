@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast"
 import { CallProvider } from "@/contexts/call-context"
 import { CallOverlay } from "@/components/call-overlay"
 import { StoreCallButton } from "@/components/store-call-button"
+import { useBackGuard } from "@/hooks/use-back-guard"
 import type { StoreData, Product, OpeningHour, StoreInfo } from "@/lib/store-data"
 
 type AuthPage = "welcome" | "login" | "signup"
@@ -55,6 +56,8 @@ export default function MerchantApp() {
     lastCancellation,
   } = useRealtimeOrders(currentUserId)
   const { toast } = useToast()
+  const [popupHidden, setPopupHidden] = useState(false)
+  useBackGuard(activePage, setActivePage, !popupHidden, () => setPopupHidden(false), isAuthenticated, Boolean(pendingOrderForPopup))
 
   useEffect(() => {
     if (!lastCancellation) return
@@ -182,6 +185,7 @@ export default function MerchantApp() {
       } else {
         // User is not logged in
         setCurrentUserId(null)
+        setPopupHidden(false)
         setIsAuthenticated(false)
         setAuthPage("welcome")
         // Reset store data to placeholder
@@ -284,6 +288,19 @@ export default function MerchantApp() {
     }))
   }, [])
 
+  const driverTrackingOrderRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!isAuthenticated || activePage !== "dashboard" || pendingOrderForPopup || driverTrackingOrderRef.current) return
+    const trackedOrder = allOrders.find((order) => order.driverStatus === "assigned" || (order.status === "at_store" && order.driverStatus === "at_store"))
+    if (trackedOrder) {
+      driverTrackingOrderRef.current = trackedOrder.id
+      setActivePage("driverAssigned")
+    }
+  }, [activePage, allOrders, isAuthenticated, pendingOrderForPopup])
+  useEffect(() => {
+    if (!isAuthenticated) driverTrackingOrderRef.current = null
+  }, [isAuthenticated])
+
   const latestPending = useMemo(() => pendingOrders[0] ?? null, [pendingOrders])
   const latestPayment = useMemo(() => allOrders.find((order) => ["accepted", "ready_for_pickup", "at_store", "picked_up", "delivered", "completed"].includes(order.status)) ?? null, [allOrders])
   const latestDriver = useMemo(() => allOrders.find((order) => Boolean(order.driverSnapshot && order.driverStatus)) ?? null, [allOrders])
@@ -319,8 +336,10 @@ export default function MerchantApp() {
   const unreadCount = Object.values(unreadCategories).filter(Boolean).length
 
   const handleLogout = useCallback(async () => {
+    if (pendingOrderForPopup && !window.confirm("You have an order waiting. Log out anyway?")) return
     try {
       await signOut(auth)
+      setPopupHidden(false)
       setIsAuthenticated(false)
       setAuthPage("welcome")
       setActivePage("dashboard")
@@ -473,6 +492,8 @@ export default function MerchantApp() {
           order={pendingOrderForPopup}
           onClose={dismissPopup}
           onStatusUpdate={handleStatusUpdate}
+          hidden={popupHidden}
+          onHiddenChange={setPopupHidden}
         />
       )}
       {/* Page Content */}
