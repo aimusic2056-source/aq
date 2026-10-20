@@ -1,6 +1,7 @@
-import AgoraRTC, { type IAgoraRTCClient, type IMicrophoneAudioTrack } from "agora-rtc-sdk-ng"
+import type { IAgoraRTCClient, IMicrophoneAudioTrack } from "agora-rtc-sdk-ng"
 
 export async function joinChannel(credentials: { appId: string; token: string; channel: string; uid: string }, onRemoteAudio: (user: unknown) => void) {
+  const { default: AgoraRTC } = await import("agora-rtc-sdk-ng")
   let client: IAgoraRTCClient | null = null
   let microphone: IMicrophoneAudioTrack | null = null
   try {
